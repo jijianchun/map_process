@@ -6,20 +6,36 @@
         {{item.name}}
       </el-button>
     </div>
-    <div style="width: 80%;margin: 0 auto 20px;text-align:center;">
-      <el-button type="primary" @click="addNewCity()">新增城市</el-button>
-    </div>
-    <el-table :data="previewList" stripe border style="width:80%; margin: 0 auto;">
+    <el-table :data="previewList" border style="width:80%; margin: 0 auto;" :row-class-name="tableRowClassName">
       <el-table-column :label="type === 'province' ? '省份' : '城市'" width="200" align="center">
         <template slot-scope="scope">
           <span v-if="type === 'province'">{{scope.row.name}}</span>
           <span v-if="type === 'city'">{{scope.row.city_name}}</span>
         </template>
       </el-table-column>
-      <el-table-column label="进度" align="center">
+      <el-table-column label="进度" align="center" v-if="type === 'city'">
         <template slot-scope="scope">
           <span v-if="!scope.row.editable">{{scope.row.status}}</span>
           <el-input v-if="scope.row.editable" v-model="scope.row.status" style="width:200px;" placeholder="请输入进度"></el-input>
+        </template>
+      </el-table-column>
+      <el-table-column label="进度" align="center" v-if="type === 'province'">
+        <template slot-scope="scope">
+          <span v-if="!scope.row.editable" class="process_detail">
+            <i>总数:{{parseInt(scope.row.finish) + parseInt(scope.row.ing) + parseInt(scope.row.noyet)}}</i>
+            <i>已完成:{{parseInt(scope.row.finish)}}</i>
+            <i>正在下载:{{parseInt(scope.row.ing)}}</i>
+            <i>未下载:{{parseInt(scope.row.noyet)}}</i>
+          </span>
+          <el-input v-if="scope.row.editable" v-model="scope.row.finish" style="width: 80px;" placeholder="请输入已完成数"></el-input>
+          <el-input v-if="scope.row.editable" v-model="scope.row.ing" style="width:80px;" placeholder="请输入正在下载数"></el-input>
+          <el-input v-if="scope.row.editable" v-model="scope.row.noyet" style="width:80px;" placeholder="请输入未下载数"></el-input>
+        </template>
+      </el-table-column>
+       <el-table-column label="百分比" align="center" v-if="type === 'province'">
+        <template slot-scope="scope">
+           <span v-if="!scope.row.editable">{{scope.row.percent}}%</span>
+           <el-input v-if="scope.row.editable" v-model="scope.row.percent" style="width:100px;" placeholder="请输入百分比"></el-input>
         </template>
       </el-table-column>
       <el-table-column label="ip" align="center" v-if="type === 'city'">
@@ -40,28 +56,6 @@
 						</template>
 					</el-table-column>
     </el-table>
-    <!-- 数据预览弹窗 -->
-    <el-dialog title="新增城市" :visible.sync="addVisible" width="400px" @close="closePreview">
-				<el-form :model="addForm" style="background:#fff;" label-width="70px" :inline="true">
-					<el-form-item label="省份:" size="small">
-            <el-select v-model="addForm.id" filterable placeholder="请选择城市">
-              <el-option v-for="(item,index) in provinceList" :key="index" :label="item.name" :value="item.id"></el-option>
-            </el-select>
-					</el-form-item>
-          <el-form-item label="城市:" size="small">
-						<el-input v-model="addForm.name" style="width:215px;" placeholder="请输入城市名称"></el-input>
-					</el-form-item>
-          <el-form-item label="进度:" size="small">
-						<el-input v-model="addForm.status" style="width:215px;" placeholder="请输入进度"></el-input>
-					</el-form-item>
-          <el-form-item label="IP:" size="small">
-						<el-input v-model="addForm.ip" style="width:215px;" placeholder="请输入IP"></el-input>
-					</el-form-item>
-				</el-form>
-        <div slot="footer" class="dialog-footer">
-				  <el-button type="primary" @click="addNewCityConfirm()">确定</el-button>
-        </div>
-    </el-dialog>
   </div>
 </template>
 
@@ -75,69 +69,26 @@ export default {
       currentId: 0,  // 当前省ID
       type: 'province', // 表格数据类型:省/市
       provinceList: [], // 省份列表
-      previewList: [], // 表格列表
-      addForm: {
-        id: '',
-        name: '',
-        status: '',
-        ip: ''
-      },
-      addVisible: false  // 新增弹框
+      previewList: [] // 表格列表
     };
   },
   mounted() {
-    this.getProvinceList();
     this.getPreviewList();
   },
   methods: {
-    // 关闭新增弹框
-    closePreview() {
-      this.addVisible = false;
-      this.addForm = {
-        id: '',
-        name: '',
-        status: '',
-        ip: ''
-      };
-    },
-    // 新增城市
-    addNewCity() {
-      this.addVisible = true;
-    },
-    // 新增城市表单提交
-    addNewCityConfirm() {
-      axios({
-        params: {
-          a: 'addCity'
-        },
-        method: 'post',
-        data: {
-          id: this.addForm.id,
-          name: this.addForm.name,
-          status: this.addForm.status,
-          ip: this.addForm.ip
-        }
-      }).then(res => {
-        if (res.data.status === 200) {
-          this.$message.success(res.data.message);
-          this.addVisible = false;
-          this.getOne(this.currentId);
+    // 表格行颜色
+    tableRowClassName({row, rowIndex}) {
+      if (row.percent) {
+         if (row.percent === '0.00') {
+          return 'gray-row';
+        } else if (row.percent === '100.00') {
+          return 'green-row';
         } else {
-          this.$message.error(res.data.message);
-          return false;
+          return 'yellow-row';
         }
-      });
-    },
-    // 获取省份列表
-    getProvinceList() {
-      axios({
-        params: {
-          a: 'getProvinceList'
-        },
-        method: 'get'
-      }).then(res => {
-        this.provinceList = res.data;
-      });
+      } else {
+        return '';
+      }
     },
     // 获取预览列表
     getPreviewList() {
@@ -147,6 +98,14 @@ export default {
         },
         method: 'get'
       }).then(res => {
+        // 省按钮列表
+        this.provinceList = res.data.map(item => {
+          return {
+            id: item.id,
+            name: item.name
+          }
+        });
+        // 预览列表
         this.previewList = res.data.map(item => {
           return {
             ...item,
@@ -188,11 +147,17 @@ export default {
     saveStatus(index) {
       let data = {
         type: this.type,
-        id: this.previewList[index].id,
-        status: this.previewList[index].status
+        id: this.previewList[index].id
       };
+      if (this.type === 'province') {
+        data.finish = this.previewList[index].finish;
+        data.ing = this.previewList[index].ing;
+        data.noyet = this.previewList[index].noyet;
+        data.percent = this.previewList[index].percent;
+      }
       if (this.type === 'city') {
         data.ip = this.previewList[index].ip;
+        data.status = this.previewList[index].status;
       }
       axios({
         params: {
@@ -226,5 +191,22 @@ export default {
 }
 .btn.active {
   color: blue;
+}
+.process_detail i{
+  font-style: normal;
+  display: inline-block;
+  width: 90px;
+}
+/deep/ .el-table__body tr:hover>td {
+  background-color: transparent !important;
+}
+/deep/ .el-table .green-row {
+  background: #9EEA6A;
+}
+/deep/ .el-table .yellow-row {
+  background: #FFC517;
+}
+/deep/ .el-table .gray-row {
+  background: #DBD9D8;
 }
 </style>
